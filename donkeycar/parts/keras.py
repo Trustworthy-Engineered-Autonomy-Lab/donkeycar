@@ -10,6 +10,11 @@ include one or more models to help direct the vehicles motion.
 import datetime
 from abc import ABC, abstractmethod
 from collections import deque
+from .models.cycle_gan_model import CycleGANModel
+from .models.pix2pix_model import Pix2PixModel
+from .models.noise_generator import ImageAugmentor
+from PIL import Image
+import os
 
 import numpy as np
 from typing import Dict, Tuple, Optional, Union, List, Sequence, Callable, Any
@@ -103,13 +108,17 @@ class KerasPilot(ABC):
                             state vector in the Behavioural model
         :return:            tuple of (angle, throttle)
         """
+        
         norm_img_arr = normalize_image(img_arr)
+
+
         np_other_array = tuple(np.array(arr) for arr in other_arr)
         # create dictionary on the fly, we expect the order of the arguments:
         # img_arr, *other_arr to exactly match the order of the
         # self.output_shape() first dictionary keys, because that's how we
         # set up the model
         values = (norm_img_arr, ) + np_other_array
+        
         # note output_shapes() returns a 2-tuple of dicts for input shapes
         # and output shapes(), so we need the first tuple here
         input_dict = dict(zip(self.output_shapes()[0].keys(), values))
@@ -321,8 +330,34 @@ class KerasLinear(KerasPilot):
     def __init__(self,
                  interpreter: Interpreter = KerasInterpreter(),
                  input_shape: Tuple[int, ...] = (120, 160, 3),
-                 num_outputs: int = 2):
+                 num_outputs: int = 2,
+                 noise_type: str = "",
+                 track_name: str = "default_track",
+                 name: str = ""):
         self.num_outputs = num_outputs
+
+        self.augmentor = ImageAugmentor()
+        self.data_folder = f"data_{track_name}_{noise_type}_{name}"
+        self.noise_folder = os.path.join(self.data_folder, "noise")
+
+        print(noise_type)
+        print(self.noise_folder)
+
+        # Create main folder and subfolders
+        os.makedirs(self.noise_folder, exist_ok=True)
+
+        if noise_type:
+            noise_function_map = {
+                "snow": self.augmentor.add_snow,
+                "salt_pepper": self.augmentor.add_salt_pepper_noise,
+                "fog": self.augmentor.add_fog,
+                "rain": self.augmentor.add_rain,
+                "brightness": self.augmentor.change_brightness
+            }
+            self.noise_function = noise_function_map.get(noise_type)
+        else:
+            self.noise_function = None
+        self.counter = 0
         super().__init__(interpreter, input_shape)
 
     def create_model(self):
@@ -330,6 +365,180 @@ class KerasLinear(KerasPilot):
 
     def compile(self):
         self.interpreter.compile(optimizer=self.optimizer, loss='mse')
+
+    def run(self, img_arr: np.ndarray, *other_arr: List[float]) -> Tuple[Union[float, np.ndarray], ...]:
+        if not isinstance(img_arr, np.ndarray):
+            raise ValueError("img_arr must be a numpy array")
+        
+        # File paths for saving images
+        noisy_image_path = os.path.join(self.noise_folder, f"noise_image_{self.counter}.jpg")
+
+        # Apply noise augmentation if a noise function is set
+        if self.noise_function:
+            img_arr = self.noise_function(img_arr)
+        
+        # Save the noisy image
+        noisy_image = Image.fromarray(img_arr)
+        noisy_image.save(noisy_image_path)
+
+        # Increment the counter
+        self.counter += 1
+
+        # Normalize the image for the model
+        norm_img_arr = normalize_image(img_arr)
+
+        np_other_array = tuple(np.array(arr) for arr in other_arr)
+        # create dictionary on the fly, we expect the order of the arguments:
+        # img_arr, *other_arr to exactly match the order of the
+        # self.output_shape() first dictionary keys, because that's how we
+        # set up the model
+        values = (norm_img_arr, ) + np_other_array
+
+        # note output_shapes() returns a 2-tuple of dicts for input shapes
+        # and output shapes(), so we need the first tuple here
+        input_dict = dict(zip(self.output_shapes()[0].keys(), values))
+        return self.inference_from_dict(input_dict)
+
+    def interpreter_to_output(self, interpreter_out):
+        steering = interpreter_out[0]
+        throttle = interpreter_out[1]
+        return steering[0], throttle[0]
+
+    def y_transform(self, record: Union[TubRecord, List[TubRecord]]) \
+            -> Dict[str, Union[float, List[float]]]:
+        assert isinstance(record, TubRecord), 'TubRecord expected'
+        angle: float = record.underlying['user/angle']
+        throttle: float = record.underlying['user/throttle']
+        return {'n_outputs0': angle, 'n_outputs1': throttle}
+
+    def output_shapes(self):
+        # need to cut off None from [None, 120, 160, 3] tensor shape
+        img_shape = self.get_input_shape('img_in')[1:]
+        shapes = ({'img_in': tf.TensorShape(img_shape)},
+                  {'n_outputs0': tf.TensorShape([]),
+                   'n_outputs1': tf.TensorShape([])})
+        return shapes
+
+
+# Custom Linear model with introduction of Noise and CycleGAN
+
+class KerasLinearGAN(KerasPilot):
+    """
+    The KerasLinear pilot uses one neuron to output a continuous value via
+    the Keras Dense layer with linear activation. One each for steering and
+    throttle. The output is not bounded.
+    """
+    def __init__(self,
+                 interpreter: Interpreter = KerasInterpreter(),
+                 input_shape: Tuple[int, ...] = (120, 160, 3),
+                 num_outputs: int = 2,
+                 model_path: str = "",
+                 gan_type: str = "",
+                 noise_type: str = "",
+                 track_name: str = "default_track",
+                 name: str = ""):
+        self.num_outputs = num_outputs
+        self.gan_type = gan_type
+        if self.gan_type == "cyclegan":
+            self.model = CycleGANModel(model_path)
+        elif self.gan_type == "pix2pix":
+            self.model = Pix2PixModel(model_path)
+        self.augmentor = ImageAugmentor()
+
+        self.data_folder = f"data_{track_name}_{noise_type}_{name}"
+        # self.input_folder = os.path.join(self.data_folder, "input")
+        self.noise_folder = os.path.join(self.data_folder, "noise")
+        self.output_folder = os.path.join(self.data_folder, "output")
+
+        # Create main folder and subfolders
+        # os.makedirs(self.input_folder, exist_ok=True)
+        os.makedirs(self.noise_folder, exist_ok=True)
+        os.makedirs(self.output_folder, exist_ok=True)
+
+        if noise_type:
+            noise_function_map = {
+                "snow": self.augmentor.add_snow,
+                "salt_pepper": self.augmentor.add_salt_pepper_noise,
+                "fog": self.augmentor.add_fog,
+                "rain": self.augmentor.add_rain,
+                "brightness": self.augmentor.change_brightness
+            }
+            self.noise_function = noise_function_map.get(noise_type)
+        else:
+            self.noise_function = None
+        self.counter = 0
+        super().__init__(interpreter, input_shape)
+
+    def create_model(self):
+        return default_n_linear(self.num_outputs, self.input_shape)
+
+    def compile(self):
+        self.interpreter.compile(optimizer=self.optimizer, loss='mse')
+    
+    def run(self, img_arr: np.ndarray, *other_arr: List[float]) -> Tuple[Union[float, np.ndarray], ...]:
+        """
+        Donkeycar parts interface to run the part in the loop.
+
+        :param img_arr:     uint8 [0,255] numpy array with image data
+        :param other_arr:   numpy array of additional data to be used in the
+                            pilot, like IMU array for the IMU model or a
+                            state vector in the Behavioural model
+        :return:            tuple of (angle, throttle)
+        """
+        if not isinstance(img_arr, np.ndarray):
+            raise ValueError("img_arr must be a numpy array")
+
+        # File paths for saving images
+        # input_image_path = os.path.join(self.input_folder, f"input_image_{self.counter}.jpg")
+        noisy_image_path = os.path.join(self.noise_folder, f"noise_image_{self.counter}.jpg")
+        output_image_path = os.path.join(self.output_folder, f"output_image_{self.counter}.jpg")
+
+
+        # Save the input image
+        # input_image = Image.fromarray(img_arr)
+        # input_image.save(input_image_path)
+
+        # Apply noise augmentation if a noise function is set
+        if self.noise_function:
+            img_arr = self.noise_function(img_arr)
+
+        # Save the noisy image
+        noisy_image = Image.fromarray(img_arr)
+        noisy_image.save(noisy_image_path)
+
+        # Apply CycleGAN transformation
+        if self.gan_type == "cyclegan":
+            img_arr = self.model.transform(img_arr)
+
+        # Apply Pix2Pix transformation
+        elif self.gan_type == "pix2pix":
+            img_arr = self.model.forward(img_arr)  # B to A transformation
+        
+        # Save the output image
+        output_image = Image.fromarray(img_arr)
+        output_image.save(output_image_path)
+
+        # Increment the counter
+        self.counter += 1
+
+        # Normalize the image for the model
+        
+        norm_img_arr = normalize_image(img_arr)
+
+
+        np_other_array = tuple(np.array(arr) for arr in other_arr)
+        # create dictionary on the fly, we expect the order of the arguments:
+        # img_arr, *other_arr to exactly match the order of the
+        # self.output_shape() first dictionary keys, because that's how we
+        # set up the model
+        values = (norm_img_arr, ) + np_other_array
+        
+        # note output_shapes() returns a 2-tuple of dicts for input shapes
+        # and output shapes(), so we need the first tuple here
+        input_dict = dict(zip(self.output_shapes()[0].keys(), values))
+        return self.inference_from_dict(input_dict)
+
+
 
     def interpreter_to_output(self, interpreter_out):
         steering = interpreter_out[0]

@@ -13,6 +13,7 @@ class ZMQValuePub(object):
         self.socket = context.socket(zmq.PUB)
         self.socket.set_hwm(hwm)
         self.socket.bind("tcp://*:%d" % port)
+
     
     def run(self, values):
         packet = { "name": self.name, "val" : values }
@@ -20,7 +21,7 @@ class ZMQValuePub(object):
         z = zlib.compress(p)
         self.socket.send(z)
 
-    def shutdown(self):
+    def shutdown(self): 
         print("shutting down zmq")
         #self.socket.close()
         context = zmq.Context()

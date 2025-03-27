@@ -481,12 +481,12 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def get_model_by_type(model_type: str, cfg: 'Config') -> Union['KerasPilot', 'FastAiPilot']:
+def get_model_by_type(model_type: str, cfg: 'Config', gan_path = "", gan_type = "", noise = "", env_name = "", name = "") -> Union['KerasPilot', 'FastAiPilot']:
     '''
     given the string model_type and the configuration settings in cfg
     create a Keras model and return it.
     '''
-    from donkeycar.parts.keras import KerasCategorical, KerasLinear, \
+    from donkeycar.parts.keras import KerasCategorical, KerasLinear, KerasLinearGAN, \
         KerasInferred, KerasIMU, KerasMemory, KerasBehavioral, KerasLocalizer, \
         KerasLSTM, Keras3D_CNN
     from donkeycar.parts.interpreter import KerasInterpreter, TfLite, TensorRT, \
@@ -514,7 +514,9 @@ def get_model_by_type(model_type: str, cfg: 'Config') -> Union['KerasPilot', 'Fa
 
     used_model_type = EqMemorizedString(used_model_type)
     if used_model_type == "linear":
-        kl = KerasLinear(interpreter=interpreter, input_shape=input_shape)
+        kl = KerasLinear(interpreter=interpreter, input_shape=input_shape, noise_type = noise, track_name = env_name, name=name)
+    elif used_model_type == "linear_with_gan":
+        kl = KerasLinearGAN(interpreter=interpreter, input_shape=input_shape, model_path = gan_path, gan_type = gan_type, noise_type = noise, track_name = env_name, name=name)
     elif used_model_type == "categorical":
         kl = KerasCategorical(
             interpreter=interpreter,

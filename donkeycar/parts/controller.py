@@ -261,7 +261,7 @@ class RCReceiver:
         self.MAX_REVERSE = cfg.PIGPIO_MAX_REVERSE
         self.RECORD = cfg.AUTO_RECORD_ON_THROTTLE
         self.debug = debug
-        self.mode = 'user'
+        self.mode = 'local'
         self.is_action = False
         self.invert = cfg.PIGPIO_INVERT
         self.jitter = cfg.PIGPIO_JITTER

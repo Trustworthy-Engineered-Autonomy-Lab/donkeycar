@@ -13,6 +13,8 @@ from threading import Thread
 from .memory import Memory
 from prettytable import PrettyTable
 import traceback
+from .parts.models.cycle_gan_model import CycleGANModel
+from .parts.models.noise_generator import ImageAugmentor
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +70,7 @@ class Vehicle:
         self.on = True
         self.threads = []
         self.profiler = PartProfiler()
+        
 
     def add(self, part, inputs=[], outputs=[],
             threaded=False, run_condition=None):
@@ -92,7 +95,6 @@ class Vehicle:
         assert type(threaded) is bool, "threaded is not a boolean: %r" % threaded
 
         p = part
-        logger.info('Adding part {}.'.format(p.__class__.__name__))
         entry = {}
         entry['part'] = p
         entry['inputs'] = inputs
@@ -113,7 +115,7 @@ class Vehicle:
         """
         self.parts.remove(part)
 
-    def start(self, rate_hz=10, max_loop_count=None, verbose=False):
+    def start(self, rate_hz=10, max_loop_count=1000, verbose=False):
         """
         Start vehicle's main drive loop.
 
@@ -137,7 +139,7 @@ class Vehicle:
         try:
 
             self.on = True
-
+            
             for entry in self.parts:
                 if entry.get('thread'):
                     # start the update thread
@@ -151,7 +153,6 @@ class Vehicle:
             while self.on:
                 start_time = time.time()
                 loop_count += 1
-
                 self.update_parts()
 
                 # stop drive loop if loop_count exceeds max_loopcount
@@ -202,9 +203,12 @@ class Vehicle:
                 self.profiler.on_part_start(p)
                 # get inputs from memory
                 inputs = self.mem.get(entry['inputs'])
+                
                 # run the part
                 if entry.get('thread'):
+                    # print(len(inputs), len(inputs[0]))
                     outputs = p.run_threaded(*inputs)
+                    # print(outputs)
                 else:
                     outputs = p.run(*inputs)
 

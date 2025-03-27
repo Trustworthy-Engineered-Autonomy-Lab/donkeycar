@@ -13,7 +13,8 @@ import json
 import logging
 import time
 import asyncio
-
+from datetime import datetime
+from PIL import Image
 import requests
 from tornado.ioloop import IOLoop
 from tornado.web import Application, RedirectHandler, StaticFileHandler, \
@@ -40,7 +41,7 @@ class RemoteWebServer():
         self.time = 0.
         self.angle = 0.
         self.throttle = 0.
-        self.mode = 'user'
+        self.mode = 'local'
         self.mode_latch = None
         self.recording = False
         # use one session for all requests
@@ -101,7 +102,7 @@ class RemoteWebServer():
 
 class LocalWebController(tornado.web.Application):
 
-    def __init__(self, port=8887, mode='user'):
+    def __init__(self, port=8887, mode='local'):
         """
         Create and publish variables needed on many of
         the web handlers.
@@ -171,7 +172,10 @@ class LocalWebController(tornado.web.Application):
         """
         self.img_arr = img_arr
         self.num_records = num_records
-
+        
+        # if img_arr is not None:
+        #     output_image = Image.fromarray(self.img_arr)
+        #     output_image.save(f"output/output_image_{datetime.now()}.jpg")
         #
         # enforce defaults if they are not none.
         #

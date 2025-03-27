@@ -5,10 +5,12 @@ date: 2019-01-24
 desc: Control a remote donkey robot over network
 '''
 
+import logging
 import time
 
 from donkeycar.parts.network import MQTTValueSub, MQTTValuePub
 from donkeycar.parts.image import JpgToImgArr
+logger = logging.getLogger(__name__)
 
 class DonkeyRemoteContoller:
     def __init__(self, donkey_name, mqtt_broker, sensor_size=(120, 160, 3)):

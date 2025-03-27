@@ -120,6 +120,7 @@ def train(cfg: Config, tub_paths: str, model: str = None,
         kl.interpreter.summary()
 
     tubs = tub_paths.split(',')
+    
     all_tub_paths = [os.path.expanduser(tub) for tub in tubs]
     dataset = TubDataset(config=cfg, tub_paths=all_tub_paths,
                          seq_size=kl.seq_size())

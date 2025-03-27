@@ -366,6 +366,7 @@ class Manifest(object):
         self.manifest_metadata = json.loads(self.seekeable.readline())
         # Catalog metadata
         catalog_metadata = json.loads(self.seekeable.readline())
+        
         self.catalog_paths = catalog_metadata['paths']
         self.current_index = catalog_metadata['current_index']
         self.max_len = catalog_metadata['max_len']

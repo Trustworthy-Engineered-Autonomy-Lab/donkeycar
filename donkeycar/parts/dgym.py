@@ -1,8 +1,17 @@
+from datetime import datetime
 import os
 import time
 import gym
 import gym_donkeycar
-
+import random
+import cv2
+import numpy as np
+import logging
+logger = logging.getLogger(__name__)
+import csv  
+import matplotlib.pyplot as plt
+import torch
+from PIL import Image
 
 def is_exe(fpath):
     return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
@@ -10,7 +19,7 @@ def is_exe(fpath):
 
 class DonkeyGymEnv(object):
 
-    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, delay=0):
+    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, delay=0, name=""):
 
         if sim_path != "remote":
             if not os.path.exists(sim_path):
@@ -41,8 +50,13 @@ class DonkeyGymEnv(object):
         self.record_gyroaccel = record_gyroaccel
         self.record_velocity = record_velocity
         self.record_lidar = record_lidar
-
+        self.cte_values = []
+        self.abs_cte_values = []
         self.buffer = []
+        folder_name = f"data_{env_name}_{noise}_{name}"
+        self.data_folder = folder_name  # Store the folder name as an attribute
+        os.makedirs(folder_name, exist_ok=True)
+        
 
     def delay_buffer(self, frame, info):
         now = time.time()
@@ -62,13 +76,37 @@ class DonkeyGymEnv(object):
         del self.buffer[:num_to_remove]
 
     def update(self):
-        while self.running:
-            if self.delay > 0.0:
-                current_frame, _, _, current_info = self.env.step(self.action)
-                self.delay_buffer(current_frame, current_info)
-            else:
-                self.frame, _, _, self.info = self.env.step(self.action)
+        time_step = 0
+        start_time = time.time()
 
+        # File path in the dynamically created folder
+        file_path = os.path.join(self.data_folder, 'cte_values.csv')
+
+        # Open the file once outside the loop
+        with open(file_path, mode='w', newline='') as file:
+            self.cte_writer = csv.writer(file)
+            self.cte_writer.writerow(['Time Step', "CTE"])  # Write the header
+
+            try:
+                while self.running and (time.time() - start_time) < 60:
+                    if self.delay > 0.0:
+                        current_frame, _, _, current_info = self.env.step(self.action)
+                        self.delay_buffer(current_frame, current_info)
+                    else:
+                        self.frame, _, _, self.info = self.env.step(self.action)
+                        cte_value = self.info["cte"]
+                        self.cte_values.append(cte_value)
+                        self.cte_writer.writerow([time_step, cte_value])
+                        time_step += 1
+            finally:
+                print(f"Data saved in {file_path}")
+                # kill the env
+                self.env.close()
+
+
+
+
+                
     def run_threaded(self, steering, throttle, brake=None):
         if steering is None or throttle is None:
             steering = 0.0
@@ -93,7 +131,25 @@ class DonkeyGymEnv(object):
         else:
             return outputs
 
+    def plot_cte_values(self, arr ,file_name):
+        plt.figure()
+        plt.plot(arr)
+        plt.xlabel('Time Steps')
+        plt.ylabel('CTE (Cross-Track Error)')
+        plt.title('CTE Over Time')
+        plt.savefig(file_name)
+
     def shutdown(self):
         self.running = False
         time.sleep(0.2)
+
+        # Save the plots in the dynamically created folder
+        cte_plot_path = os.path.join(self.data_folder, "cte_plot.png")
+        # abs_cte_plot_path = os.path.join(self.data_folder, "abs_cte_plot.png")
+
+        self.plot_cte_values(self.cte_values, cte_plot_path)
+        # self.plot_cte_values(self.abs_cte_values, abs_cte_plot_path)
+
+        print(f"Plots saved in directory: {self.data_folder}")
         self.env.close()
+
