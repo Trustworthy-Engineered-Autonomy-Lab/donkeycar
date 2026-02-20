@@ -781,8 +781,8 @@ def add_simulator(V, cfg):
             outputs += ['lidar/dist_array']
         # if cfg.SIM_RECORD_DISTANCE:
         #     outputs += ['dist/left', 'dist/right']
-        # if cfg.SIM_RECORD_ORIENTATION:
-        #     outputs += ['roll', 'pitch', 'yaw']
+        if cfg.SIM_RECORD_ORIENTATION:
+            outputs += ['roll', 'pitch', 'yaw']
 
         V.add(gym, inputs=inputs, outputs=outputs, threaded=threaded)
 

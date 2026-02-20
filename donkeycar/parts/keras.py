@@ -333,11 +333,12 @@ class KerasLinear(KerasPilot):
                  num_outputs: int = 2,
                  noise_type: str = "",
                  track_name: str = "default_track",
-                 name: str = ""):
+                 name: str = "",
+                 folder_name: str = ''):
         self.num_outputs = num_outputs
 
         self.augmentor = ImageAugmentor()
-        self.data_folder = f"data_{track_name}_{noise_type}_{name}"
+        self.data_folder = folder_name + f"data_{track_name}_{noise_type}_{name}"
         self.noise_folder = os.path.join(self.data_folder, "noise")
 
         print(noise_type)
@@ -436,7 +437,8 @@ class KerasLinearGAN(KerasPilot):
                  gan_type: str = "",
                  noise_type: str = "",
                  track_name: str = "default_track",
-                 name: str = ""):
+                 name: str = "",
+                 folder_name: str = ""):
         self.num_outputs = num_outputs
         self.gan_type = gan_type
         if self.gan_type == "cyclegan":
@@ -447,6 +449,7 @@ class KerasLinearGAN(KerasPilot):
 
         self.data_folder = f"data_{track_name}_{noise_type}_{name}"
         # self.input_folder = os.path.join(self.data_folder, "input")
+        self.data_folder = folder_name + self.data_folder
         self.noise_folder = os.path.join(self.data_folder, "noise")
         self.output_folder = os.path.join(self.data_folder, "output")
 

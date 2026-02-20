@@ -19,7 +19,7 @@ def is_exe(fpath):
 
 class DonkeyGymEnv(object):
 
-    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, delay=0, name=""):
+    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, name="", folder_name=''):
 
         if sim_path != "remote":
             if not os.path.exists(sim_path):
@@ -35,6 +35,8 @@ class DonkeyGymEnv(object):
         conf["guid"] = 0
         conf["frame_skip"] = 1
         self.env = gym.make(env_name, conf=conf)
+        print('debug', conf)
+        print('debug 2', self.env)
         self.frame = self.env.reset()
         self.action = [0.0, 0.0, 0.0]
         self.running = True
@@ -44,18 +46,23 @@ class DonkeyGymEnv(object):
                      'gyro': (0., 0., 0.),
                      'accel': (0., 0., 0.),
                      'vel': (0., 0., 0.),
-                     'lidar': []}
+                     'lidar': [], 
+                     'roll': 0.0,
+                     'pitch': 0.0,
+                     'yaw': 0.0}
         self.delay = float(delay) / 1000
         self.record_location = record_location
         self.record_gyroaccel = record_gyroaccel
         self.record_velocity = record_velocity
         self.record_lidar = record_lidar
+        self.record_orientation = record_orientation
         self.cte_values = []
         self.abs_cte_values = []
+        self.all_data = []
         self.buffer = []
-        folder_name = f"data_{env_name}_{noise}_{name}"
-        self.data_folder = folder_name  # Store the folder name as an attribute
-        os.makedirs(folder_name, exist_ok=True)
+        folder_path = folder_name + f"data_{env_name}_{noise}_{name}"
+        self.data_folder = folder_path  # Store the folder name as an attribute
+        os.makedirs(folder_path, exist_ok=True)
         
 
     def delay_buffer(self, frame, info):
@@ -89,6 +96,11 @@ class DonkeyGymEnv(object):
 
             try:
                 while self.running and (time.time() - start_time) < 60:
+                    controller_data = {
+                    'steering_cmd': self.action[0],
+                    'throttle_cmd': self.action[1],
+                    'brake_cmd': self.action[2]
+                }
                     if self.delay > 0.0:
                         current_frame, _, _, current_info = self.env.step(self.action)
                         self.delay_buffer(current_frame, current_info)
@@ -109,7 +121,7 @@ class DonkeyGymEnv(object):
                 
     def run_threaded(self, steering, throttle, brake=None):
         if steering is None or throttle is None:
-            steering = 0.0
+            steering = 0.0 
             throttle = 0.0
         if brake is None:
             brake = 0.0
@@ -126,6 +138,9 @@ class DonkeyGymEnv(object):
             outputs += self.info['vel'][0],  self.info['vel'][1],  self.info['vel'][2]
         if self.record_lidar:
             outputs += [self.info['lidar']]
+        if self.record_orientation:
+            outputs += self.info['roll'], self.info['pitch'], self.info['yaw']
+        
         if len(outputs) == 1:
             return self.frame
         else:
