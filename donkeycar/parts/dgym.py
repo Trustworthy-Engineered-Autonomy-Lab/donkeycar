@@ -20,7 +20,7 @@ def is_exe(fpath):
 
 class DonkeyGymEnv(object):
 
-    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, num_drop=0, name="", folder_name=''):
+    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, num_drop=0, brightness_coeff=1.0, name="", folder_name=''):
 
         if sim_path != "remote":
             if not os.path.exists(sim_path):
@@ -66,6 +66,7 @@ class DonkeyGymEnv(object):
         self.num_drop = num_drop
         self.drop_counter = 0
         self.frozen_frame = None
+        self.brightness_coeff = brightness_coeff
 
         folder_path = folder_name + f"data_{env_name}_{noise}_{name}"
         self.data_folder = folder_path  # Store the folder name as an attribute
@@ -144,9 +145,12 @@ class DonkeyGymEnv(object):
             frame_out = self.frame
         
 
-        if self.noise == "blur":
+        if "blur" in self.noise:
             frame_out = self.augmentor.add_defocus(frame_out)
             # Image.fromarray(self.frame).save(os.path.join(self.data_folder, "blur_sample.jpg"))
+        if "brightness" in self.noise:
+            frame_out = self.augmentor.change_brightness(frame_out, self.brightness_coeff)
+        
 
         # Output Sim-car position information if configured
         outputs = [frame_out]
