@@ -20,7 +20,7 @@ def is_exe(fpath):
 
 class DonkeyGymEnv(object):
 
-    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, name="", folder_name=''):
+    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, num_drop=0, name="", folder_name=''):
 
         if sim_path != "remote":
             if not os.path.exists(sim_path):
@@ -63,6 +63,10 @@ class DonkeyGymEnv(object):
         self.buffer = []
         self.noise = noise
         self.augmentor = ImageAugmentor()
+        self.num_drop = num_drop
+        self.drop_counter = 0
+        self.frozen_frame = None
+
         folder_path = folder_name + f"data_{env_name}_{noise}_{name}"
         self.data_folder = folder_path  # Store the folder name as an attribute
         os.makedirs(folder_path, exist_ok=True)
@@ -131,12 +135,21 @@ class DonkeyGymEnv(object):
 
         self.action = [steering, throttle, brake]
 
+        if self.num_drop > 0:
+            if self.drop_counter == 0:
+                self.frozen_frame = self.frame.copy()
+            self.drop_counter = (self.drop_counter + 1) % (self.num_drop)
+            frame_out = self.frozen_frame
+        else:
+            frame_out = self.frame
+        
+
         if self.noise == "blur":
-            self.frame = self.augmentor.add_defocus(self.frame)
+            frame_out = self.augmentor.add_defocus(frame_out)
             # Image.fromarray(self.frame).save(os.path.join(self.data_folder, "blur_sample.jpg"))
 
         # Output Sim-car position information if configured
-        outputs = [self.frame]
+        outputs = [frame_out]
         if self.record_location:
             outputs += self.info['pos'][0],  self.info['pos'][1],  self.info['pos'][2],  self.info['speed'], self.info['cte']
         if self.record_gyroaccel:
@@ -149,7 +162,7 @@ class DonkeyGymEnv(object):
             outputs += self.info['roll'], self.info['pitch'], self.info['yaw']
         
         if len(outputs) == 1:
-            return self.frame
+            return frame_out
         else:
             return outputs
 
