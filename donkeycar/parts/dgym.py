@@ -8,10 +8,11 @@ import cv2
 import numpy as np
 import logging
 logger = logging.getLogger(__name__)
-import csv  
+import csv
 import matplotlib.pyplot as plt
 import torch
 from PIL import Image
+from donkeycar.parts.models.noise_generator import ImageAugmentor
 
 def is_exe(fpath):
     return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
@@ -60,6 +61,8 @@ class DonkeyGymEnv(object):
         self.abs_cte_values = []
         self.all_data = []
         self.buffer = []
+        self.noise = noise
+        self.augmentor = ImageAugmentor()
         folder_path = folder_name + f"data_{env_name}_{noise}_{name}"
         self.data_folder = folder_path  # Store the folder name as an attribute
         os.makedirs(folder_path, exist_ok=True)
@@ -127,6 +130,10 @@ class DonkeyGymEnv(object):
             brake = 0.0
 
         self.action = [steering, throttle, brake]
+
+        if self.noise == "blur":
+            self.frame = self.augmentor.add_defocus(self.frame)
+            # Image.fromarray(self.frame).save(os.path.join(self.data_folder, "blur_sample.jpg"))
 
         # Output Sim-car position information if configured
         outputs = [self.frame]
