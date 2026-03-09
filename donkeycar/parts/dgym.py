@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 import csv
 import matplotlib.pyplot as plt
 import torch
+from collections import deque
 from PIL import Image
 from donkeycar.parts.models.noise_generator import ImageAugmentor
 
@@ -20,7 +21,7 @@ def is_exe(fpath):
 
 class DonkeyGymEnv(object):
 
-    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, num_drop=0, brightness_coeff=1.0, name="", folder_name=''):
+    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, num_drop=0, brightness_coeff=1.0, name="", folder_name='', cmd_latency=0, mass_scale = 1.0, cam_pitch = 0.0):
 
         if sim_path != "remote":
             if not os.path.exists(sim_path):
@@ -39,6 +40,15 @@ class DonkeyGymEnv(object):
         print('debug', conf)
         print('debug 2', self.env)
         self.frame = self.env.reset()
+        if mass_scale != 1.0:
+            import json as json_lib
+            msg = {"msg_type": "physics_config", "mass_scale": str(mass_scale)}
+            self.env.unwrapped.viewer.handler.queue_message(msg)
+        if cam_pitch != 0.0:
+            self.env.unwrapped.viewer.handler.send_cam_config(rot_x=cam_pitch)
+
+        
+        self.mass_scale = mass_scale
         self.action = [0.0, 0.0, 0.0]
         self.running = True
         self.info = {'pos': (0., 0., 0.),
@@ -67,6 +77,10 @@ class DonkeyGymEnv(object):
         self.drop_counter = 0
         self.frozen_frame = None
         self.brightness_coeff = brightness_coeff
+        self.cmd_latency = cmd_latency
+        if cmd_latency > 0:
+            self.cmd_queue = deque()
+
 
         folder_path = folder_name + f"data_{env_name}_{noise}_{name}"
         self.data_folder = folder_path  # Store the folder name as an attribute
@@ -134,7 +148,15 @@ class DonkeyGymEnv(object):
         if brake is None:
             brake = 0.0
 
-        self.action = [steering, throttle, brake]
+        
+
+        #self.action = [steering, throttle, brake] replaced w below code to implement command latency
+        if self.cmd_latency > 0:
+            self.cmd_queue.append([steering, throttle, brake])
+            if len(self.cmd_queue) > self.cmd_latency:
+                self.action = self.cmd_queue.popleft()
+        else:
+            self.action = [steering, throttle, brake]
 
         if self.num_drop > 0:
             if self.drop_counter == 0:
