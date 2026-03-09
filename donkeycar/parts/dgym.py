@@ -47,9 +47,7 @@ class DonkeyGymEnv(object):
                      'accel': (0., 0., 0.),
                      'vel': (0., 0., 0.),
                      'lidar': [], 
-                     'roll': 0.0,
-                     'pitch': 0.0,
-                     'yaw': 0.0}
+                     'car': (0., 0., 0.)}
         self.delay = float(delay) / 1000
         self.record_location = record_location
         self.record_gyroaccel = record_gyroaccel
@@ -63,6 +61,11 @@ class DonkeyGymEnv(object):
         folder_path = folder_name + f"data_{env_name}_{noise}_{name}"
         self.data_folder = folder_path  # Store the folder name as an attribute
         os.makedirs(folder_path, exist_ok=True)
+        self.V = None
+        self.run_logger = None
+
+        self.cumulative_cte = 0.0
+
         
 
     def delay_buffer(self, frame, info):
@@ -95,7 +98,8 @@ class DonkeyGymEnv(object):
             self.cte_writer.writerow(['Time Step', "CTE"])  # Write the header
 
             try:
-                while self.running and (time.time() - start_time) < 60:
+                # This can be changed to self.info.get('hit', 'none') != 'barrier' To get if the car collides for more than 3 seconds
+                while self.running and self.info.get('hit', 'none') == 'none': #and (time.time() - start_time) < 60:
                     controller_data = {
                     'steering_cmd': self.action[0],
                     'throttle_cmd': self.action[1],
@@ -112,7 +116,10 @@ class DonkeyGymEnv(object):
                         time_step += 1
             finally:
                 print(f"Data saved in {file_path}")
-                # kill the env
+                if self.run_logger and self.info.get('hit', 'none') != 'none':
+                    self.run_logger.set_outcome('CRASH')
+                if self.V:
+                    self.V.on = False
                 self.env.close()
 
 
@@ -139,8 +146,11 @@ class DonkeyGymEnv(object):
         if self.record_lidar:
             outputs += [self.info['lidar']]
         if self.record_orientation:
-            outputs += self.info['roll'], self.info['pitch'], self.info['yaw']
+            outputs += self.info['car'][0], self.info['car'][1], self.info['car'][2]
         
+        outputs.append(self.running)
+        outputs.append(self.info.get('hit', 'none'))
+
         if len(outputs) == 1:
             return self.frame
         else:
