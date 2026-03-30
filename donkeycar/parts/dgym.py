@@ -99,7 +99,8 @@ class DonkeyGymEnv(object):
 
             try:
                 # This can be changed to self.info.get('hit', 'none') != 'barrier' To get if the car collides for more than 3 seconds
-                while self.running and self.info.get('hit', 'none') == 'none': #and (time.time() - start_time) < 60:
+                # Change to get != 'none' for any crash at all
+                while self.running and self.info.get('hit', 'none') != 'barrier': #and (time.time() - start_time) < 60:
                     controller_data = {
                     'steering_cmd': self.action[0],
                     'throttle_cmd': self.action[1],
@@ -116,7 +117,8 @@ class DonkeyGymEnv(object):
                         time_step += 1
             finally:
                 print(f"Data saved in {file_path}")
-                if self.run_logger and self.info.get('hit', 'none') != 'none':
+                print('debug barrier',self.info.get('hit', 'none'))
+                if self.run_logger and self.info.get('hit', 'none') == 'barrier':
                     self.run_logger.set_outcome('CRASH')
                 if self.V:
                     self.V.on = False

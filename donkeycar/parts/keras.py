@@ -338,14 +338,17 @@ class KerasLinear(KerasPilot):
         self.num_outputs = num_outputs
 
         self.augmentor = ImageAugmentor()
-        self.data_folder = folder_name + f"data_{track_name}_{noise_type}_{name}"
+        #self.data_folder = folder_name + f"data_{track_name}_{noise_type}_{name}"
+        self.data_folder = folder_name
         self.noise_folder = os.path.join(self.data_folder, "noise")
+        self.normal_folder = os.path.join(self.data_folder, "normal")
 
         print(noise_type)
         print(self.noise_folder)
 
         # Create main folder and subfolders
         os.makedirs(self.noise_folder, exist_ok=True)
+        os.makedirs(self.normal_folder, exist_ok=True)
 
         if noise_type:
             noise_function_map = {
@@ -373,6 +376,9 @@ class KerasLinear(KerasPilot):
         
         # File paths for saving images
         noisy_image_path = os.path.join(self.noise_folder, f"noise_image_{self.counter}.jpg")
+        normal_image_path = os.path.join(self.normal_folder, f"image_{self.counter}.jpg")
+        normal_image = Image.fromarray(img_arr)
+        normal_image.save(normal_image_path)
 
         # Apply noise augmentation if a noise function is set
         if self.noise_function:
@@ -447,7 +453,8 @@ class KerasLinearGAN(KerasPilot):
             self.model = Pix2PixModel(model_path)
         self.augmentor = ImageAugmentor()
 
-        self.data_folder = f"data_{track_name}_{noise_type}_{name}"
+        #self.data_folder = f"data_{track_name}_{noise_type}_{name}"
+        self.data_folder = ""
         # self.input_folder = os.path.join(self.data_folder, "input")
         self.data_folder = folder_name + self.data_folder
         self.noise_folder = os.path.join(self.data_folder, "noise")
