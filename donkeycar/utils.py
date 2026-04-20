@@ -481,7 +481,7 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def get_model_by_type(model_type: str, cfg: 'Config', gan_path = "", gan_type = "", noise = "", env_name = "", name = "") -> Union['KerasPilot', 'FastAiPilot']:
+def get_model_by_type(model_type: str, cfg: 'Config', gan_path = "", gan_type = "", noise = "", env_name = "", name = "", folder_name = "") -> Union['KerasPilot', 'FastAiPilot']:
     '''
     given the string model_type and the configuration settings in cfg
     create a Keras model and return it.
@@ -514,9 +514,9 @@ def get_model_by_type(model_type: str, cfg: 'Config', gan_path = "", gan_type = 
 
     used_model_type = EqMemorizedString(used_model_type)
     if used_model_type == "linear":
-        kl = KerasLinear(interpreter=interpreter, input_shape=input_shape, noise_type = noise, track_name = env_name, name=name)
+        kl = KerasLinear(interpreter=interpreter, input_shape=input_shape, noise_type = noise, track_name = env_name, name=name, folder_name=folder_name)
     elif used_model_type == "linear_with_gan":
-        kl = KerasLinearGAN(interpreter=interpreter, input_shape=input_shape, model_path = gan_path, gan_type = gan_type, noise_type = noise, track_name = env_name, name=name)
+        kl = KerasLinearGAN(interpreter=interpreter, input_shape=input_shape, model_path = gan_path, gan_type = gan_type, noise_type = noise, track_name = env_name, name=name, folder_name=folder_name)
     elif used_model_type == "categorical":
         kl = KerasCategorical(
             interpreter=interpreter,
