@@ -19,7 +19,7 @@ def is_exe(fpath):
 
 class DonkeyGymEnv(object):
 
-    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, name="", folder_name=''):
+    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, name="", folder_name='', num_drop=0, brightness_coeff=1.0, cmd_latency=0.0, mass_scale=1.0, cam_pitch=0.0, occlusion_fraction=0.0, friction_scale=1.0):
 
         if sim_path != "remote":
             if not os.path.exists(sim_path):
@@ -34,6 +34,8 @@ class DonkeyGymEnv(object):
         conf["port"] = port
         conf["guid"] = 0
         conf["frame_skip"] = 1
+        self.timeout = conf.get('timeout', 3)
+        self.timescale = conf.get('time_scale', 1)
         self.env = gym.make(env_name, conf=conf)
         print('debug', conf)
         print('debug 2', self.env)
@@ -79,6 +81,8 @@ class DonkeyGymEnv(object):
             if now - buf[0] >= self.delay:
                 num_to_remove += 1
                 self.frame = buf[1]
+                # Added by Ethan K, just a note it might break
+                self.info = buf[2]
             else:
                 break
 
@@ -88,6 +92,8 @@ class DonkeyGymEnv(object):
     def update(self):
         time_step = 0
         start_time = time.time()
+        collision_start_time = None
+        collision_timeout = self.timeout / self.timescale
 
         # File path in the dynamically created folder
         file_path = os.path.join(self.data_folder, 'cte_values.csv')
@@ -98,14 +104,24 @@ class DonkeyGymEnv(object):
             self.cte_writer.writerow(['Time Step', "CTE"])  # Write the header
 
             try:
-                # This can be changed to self.info.get('hit', 'none') != 'barrier' To get if the car collides for more than 3 seconds
-                # Change to get != 'none' for any crash at all
-                while self.running and self.info.get('hit', 'none') != 'barrier': #and (time.time() - start_time) < 60:
+                # Exit when car collides for 3+ seconds
+                while self.running:
+                    # Track collision time
+                    if self.info.get('hit', 'none') != 'none':
+                        if collision_start_time is None:
+                            collision_start_time = time.time()
+                        # Exit if collision has lasted 3+ seconds
+                        if time.time() - collision_start_time >= collision_timeout:
+                            break
+                    else:
+                        # Reset collision timer if no longer colliding
+                        collision_start_time = None
+                    
                     controller_data = {
-                    'steering_cmd': self.action[0],
-                    'throttle_cmd': self.action[1],
-                    'brake_cmd': self.action[2]
-                }
+                        'steering_cmd': self.action[0],
+                        'throttle_cmd': self.action[1],
+                        'brake_cmd': self.action[2]
+                    }
                     if self.delay > 0.0:
                         current_frame, _, _, current_info = self.env.step(self.action)
                         self.delay_buffer(current_frame, current_info)
@@ -117,8 +133,9 @@ class DonkeyGymEnv(object):
                         time_step += 1
             finally:
                 print(f"Data saved in {file_path}")
-                print('debug barrier',self.info.get('hit', 'none'))
-                if self.run_logger and self.info.get('hit', 'none') == 'barrier':
+                print('debug collision',self.info.get('hit', 'none'))
+                #if self.run_logger and self.info.get('hit', 'none') != 'none':
+                if self.run_logger and collision_start_time and time.time() - collision_start_time >= collision_timeout:
                     self.run_logger.set_outcome('CRASH')
                 if self.V:
                     self.V.on = False
