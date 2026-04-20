@@ -8,10 +8,12 @@ import cv2
 import numpy as np
 import logging
 logger = logging.getLogger(__name__)
-import csv  
+import csv
 import matplotlib.pyplot as plt
 import torch
+from collections import deque
 from PIL import Image
+from donkeycar.parts.models.noise_generator import ImageAugmentor
 
 def is_exe(fpath):
     return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
@@ -19,7 +21,7 @@ def is_exe(fpath):
 
 class DonkeyGymEnv(object):
 
-    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, name="", folder_name='', num_drop=0, brightness_coeff=1.0, cmd_latency=0.0, mass_scale=1.0, cam_pitch=0.0, occlusion_fraction=0.0, friction_scale=1.0):
+    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, num_drop=0, brightness_coeff=1.0, name="", folder_name='', cmd_latency=0, mass_scale = 1.0, cam_pitch = 0.0, occlusion_fraction = .4, friction_scale = 1.0, drag_force = 0.0, blur_kernel = 7):
 
         if sim_path != "remote":
             if not os.path.exists(sim_path):
@@ -40,6 +42,17 @@ class DonkeyGymEnv(object):
         print('debug', conf)
         print('debug 2', self.env)
         self.frame = self.env.reset()
+        
+        if friction_scale != 1.0 or mass_scale != 1.0 or cam_pitch != 0.0 or drag_force != 0.0:
+            import json as json_lib
+            msg = {"msg_type": "physics_config", "mass_scale": str(mass_scale), "friction_scale": str(friction_scale), "cam_pitch": str(cam_pitch), "drag_force": str(drag_force)}
+            self.env.unwrapped.viewer.handler.queue_message(msg)
+
+
+
+
+        
+        self.mass_scale = mass_scale
         self.action = [0.0, 0.0, 0.0]
         self.running = True
         self.info = {'pos': (0., 0., 0.),
@@ -60,6 +73,24 @@ class DonkeyGymEnv(object):
         self.abs_cte_values = []
         self.all_data = []
         self.buffer = []
+        self.noise = noise
+        self.augmentor = ImageAugmentor()
+        self.num_drop = num_drop
+        self.drop_counter = 0
+        self.frozen_frame = None
+        self.brightness_coeff = brightness_coeff
+        self.occlusion_fraction = occlusion_fraction
+        self.mud_center = None
+        self.blur_kernel = blur_kernel
+
+
+
+
+        self.cmd_latency = cmd_latency
+        if cmd_latency > 0:
+            self.cmd_queue = deque()
+
+
         folder_path = folder_name + f"data_{env_name}_{noise}_{name}"
         self.data_folder = folder_path  # Store the folder name as an attribute
         os.makedirs(folder_path, exist_ok=True)
@@ -152,10 +183,43 @@ class DonkeyGymEnv(object):
         if brake is None:
             brake = 0.0
 
-        self.action = [steering, throttle, brake]
+        
+
+        #self.action = [steering, throttle, brake] replaced w below code to implement command latency
+        if self.cmd_latency > 0:
+            self.cmd_queue.append([steering, throttle, brake])
+            if len(self.cmd_queue) > self.cmd_latency:
+                self.action = self.cmd_queue.popleft()
+        else:
+            self.action = [steering, throttle, brake]
+
+        if self.num_drop > 0:
+            if self.drop_counter == 0:
+                self.frozen_frame = self.frame.copy()
+            self.drop_counter = (self.drop_counter + 1) % (self.num_drop)
+            frame_out = self.frozen_frame
+        else:
+            frame_out = self.frame
+        
+
+        if "blur" in self.noise:
+            frame_out = self.augmentor.add_defocus(frame_out, self.blur_kernel)
+        if "brightness" in self.noise:
+            frame_out = self.augmentor.change_brightness(frame_out, self.brightness_coeff)
+        if "mud" in self.noise:                                                                                  
+            if self.mud_center is None:
+                h, w = frame_out.shape[:2]          
+                total_pixels = h * w            
+                covered_pixels = total_pixels * self.occlusion_fraction
+                radius = int(np.sqrt(covered_pixels / np.pi))                                                    
+                cx = np.random.randint(radius, w - radius) if radius < w // 2 else w // 2
+                cy = np.random.randint(radius, h - radius) if radius < h // 2 else h // 2                        
+                self.mud_center = (cx, cy)      
+            frame_out = self.augmentor.add_mud_blob(frame_out, self.occlusion_fraction, center=self.mud_center)
+        
 
         # Output Sim-car position information if configured
-        outputs = [self.frame]
+        outputs = [frame_out]
         if self.record_location:
             outputs += self.info['pos'][0],  self.info['pos'][1],  self.info['pos'][2],  self.info['speed'], self.info['cte']
         if self.record_gyroaccel:
@@ -171,7 +235,7 @@ class DonkeyGymEnv(object):
         outputs.append(self.info.get('hit', 'none'))
 
         if len(outputs) == 1:
-            return self.frame
+            return frame_out
         else:
             return outputs
 
