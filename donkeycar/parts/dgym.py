@@ -1,7 +1,7 @@
 from datetime import datetime
 import os
 import time
-import gym
+import gymnasium as gym
 import gym_donkeycar
 import random
 import cv2
@@ -41,7 +41,11 @@ class DonkeyGymEnv(object):
         self.env = gym.make(env_name, conf=conf)
         print('debug', conf)
         print('debug 2', self.env)
-        self.frame = self.env.reset()
+        reset_result = self.env.reset()
+        if isinstance(reset_result, tuple):
+            self.frame, self.info = reset_result
+        else:
+            self.frame = reset_result
         
         if friction_scale != 1.0 or mass_scale != 1.0 or cam_pitch != 0.0 or drag_force != 0.0:
             import json as json_lib
@@ -154,10 +158,10 @@ class DonkeyGymEnv(object):
                         'brake_cmd': self.action[2]
                     }
                     if self.delay > 0.0:
-                        current_frame, _, _, current_info = self.env.step(self.action)
+                        current_frame, current_info = self._step_env()
                         self.delay_buffer(current_frame, current_info)
                     else:
-                        self.frame, _, _, self.info = self.env.step(self.action)
+                        self.frame, self.info = self._step_env()
                         cte_value = self.info["cte"]
                         self.cte_values.append(cte_value)
                         self.cte_writer.writerow([time_step, cte_value])
@@ -176,6 +180,15 @@ class DonkeyGymEnv(object):
 
 
                 
+    def _step_env(self):
+        step_result = self.env.step(self.action)
+        if len(step_result) == 5:
+            frame, _, _, _, info = step_result
+        else:
+            frame, _, _, info = step_result
+        return frame, info
+
+
     def run_threaded(self, steering, throttle, brake=None):
         if steering is None or throttle is None:
             steering = 0.0 
