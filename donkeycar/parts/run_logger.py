@@ -33,23 +33,23 @@ class RunLogger:
         self.anomaly_param = intensity_param
         self.outcome = 'SAFE'
         
-        # Store anomaly/parameter values
-        self.steering_gain = steering_gain
-        self.steering_bias = steering_bias
-        self.frame_drop = frame_drop
-        self.brightness_coeff = brightness_coeff
-        self.cmd_latency = cmd_latency
-        self.mass_scale = mass_scale
-        self.cam_pitch = cam_pitch
-        self.occlusion_fraction = occlusion_fraction
-        self.friction_scale = friction_scale
+        # Store anomaly/parameter values #SETTING EVERYTHING TO INTENSITY_PARAM ONLY WORKS FOR SINGLE ANOMALY RUNS
+        self.steering_gain =  intensity_param #steering_gain
+        self.steering_bias = intensity_param #steering_bias
+        self.frame_drop = intensity_param #frame_drop
+        self.brightness_coeff = intensity_param #brightness_coeff
+        self.cmd_latency = intensity_param #cmd_latency
+        self.mass_scale = intensity_param #mass_scale
+        self.cam_pitch = intensity_param #cam_pitch
+        self.occlusion_fraction = intensity_param #occlusion_fraction
+        self.friction_scale = intensity_param #friction_scale
         
         # Build anomaly intensity dict for per-timestep recording
         self.anomaly_intensities = {}
         for anomaly in self.anomaly_flag_list:
             if anomaly == 'steering_gain':
                 self.anomaly_intensities['steering_gain'] = steering_gain
-            elif anomaly == 'steering_bias':
+            elif anomaly == 'steering_bias': 
                 self.anomaly_intensities['steering_bias'] = steering_bias
             elif anomaly == 'frame_drop':
                 self.anomaly_intensities['frame_drop'] = frame_drop
