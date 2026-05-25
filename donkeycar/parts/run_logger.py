@@ -114,8 +114,8 @@ class RunLogger:
             self.euclidean_dist += math.sqrt((pos_x - self.prev_x)**2 + (pos_z - self.prev_z)**2)
         self.prev_x, self.prev_z = pos_x or 0.0, pos_z or 0.0
         # Change this to hit != 'none' to detect any barrier crash
-        if hit and hit == 'barrier':
-            self.outcome = 'CRASH'
+        #if hit and hit == 'barrier': ###REMOVED IN ORDER TO IMPLEMENT 3 SECOND TIMEOUT RATHER THAN INSTANT TIMEOUT
+        #    self.outcome = 'CRASH'
         self.frame_id += 1
 
     def set_outcome(self, outcome):

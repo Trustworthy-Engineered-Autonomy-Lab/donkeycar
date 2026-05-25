@@ -142,7 +142,9 @@ class DonkeyGymEnv(object):
                 # Exit when car collides for 3+ seconds
                 while self.running:
                     # Track collision time
-                    if self.info.get('hit', 'none') != 'none':
+                    #print("DEBUG LINE IN DGYM 145")
+                    #print(self.info.get('contact', 'none'))
+                    if self.info.get('contact', 'none') != 'none':
                         if collision_start_time is None:
                             collision_start_time = time.time()
                         # Exit if collision has lasted 3+ seconds
@@ -168,7 +170,7 @@ class DonkeyGymEnv(object):
                         time_step += 1
             finally:
                 print(f"Data saved in {file_path}")
-                print('debug collision',self.info.get('hit', 'none'))
+                print('debug collision',self.info.get('contact', 'none'))
                 #if self.run_logger and self.info.get('hit', 'none') != 'none':
                 if self.run_logger and collision_start_time and time.time() - collision_start_time >= collision_timeout:
                     self.run_logger.set_outcome('CRASH')
