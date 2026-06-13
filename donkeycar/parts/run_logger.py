@@ -43,6 +43,7 @@ class RunLogger:
         self.cam_pitch = intensity_param #cam_pitch
         self.occlusion_fraction = intensity_param #occlusion_fraction
         self.friction_scale = intensity_param #friction_scale
+        self.blur_kernel = intensity_param #blur_kernel
         
         # Build anomaly intensity dict for per-timestep recording
         self.anomaly_intensities = {}
@@ -65,6 +66,8 @@ class RunLogger:
                 self.anomaly_intensities['occlusion_fraction'] = occlusion_fraction
             elif anomaly == 'friction_scale':
                 self.anomaly_intensities['friction_scale'] = friction_scale
+            elif anomaly == 'blur_kernel':
+                self.anomaly_intensities['blur_kernel'] = self.blur_kernel
 
         self.cumulative_cte = 0.0
         self.euclidean_dist = 0.0
