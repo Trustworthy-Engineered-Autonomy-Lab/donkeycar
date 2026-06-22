@@ -21,7 +21,7 @@ def is_exe(fpath):
 
 class DonkeyGymEnv(object):
 
-    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, num_drop=0, brightness_coeff=1.0, name="", folder_name='', cmd_latency=0, mass_scale = 1.0, cam_pitch = 0.0, occlusion_fraction = .4, friction_scale = 1.0, drag_force = 0.0, blur_kernel = 7):
+    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, num_drop=0, brightness_coeff=1.0, name="", folder_name='', cmd_latency=0, mass_scale = 1.0, cam_pitch = 0.0, occlusion_fraction = .4, friction_scale = 1.0, drag_force = 0.0, blur_kernel = 7., one_wheel_friction_scale = 1.0, one_wheel_friction_index = -1):
 
         if sim_path != "remote":
             if not os.path.exists(sim_path):
@@ -47,10 +47,11 @@ class DonkeyGymEnv(object):
         else:
             self.frame = reset_result
         
-        if friction_scale != 1.0 or mass_scale != 1.0 or cam_pitch != 0.0 or drag_force != 0.0:
+        if friction_scale != 1.0 or mass_scale != 1.0 or cam_pitch != 0.0 or drag_force != 0.0 or one_wheel_friction_index != -1:
             import json as json_lib
-            msg = {"msg_type": "physics_config", "mass_scale": str(mass_scale), "friction_scale": str(friction_scale), "cam_pitch": str(cam_pitch), "drag_force": str(drag_force)}
-            self.env.unwrapped.viewer.handler.queue_message(msg)
+            msg = {"msg_type": "physics_config", "mass_scale": str(mass_scale), "friction_scale": str(friction_scale), "cam_pitch": str(cam_pitch), "drag_force": str(drag_force), "one_wheel_friction_scale": str(one_wheel_friction_scale), "one_wheel_friction_index": str(one_wheel_friction_index),}
+            print("sending physics_config", msg, flush=True)
+            self.env.unwrapped.viewer.handler.blocking_send(msg)
 
 
 
@@ -141,10 +142,10 @@ class DonkeyGymEnv(object):
             try:
                 # Exit when car collides for 3+ seconds
                 while self.running:
-                    # Track collision time
-                    #print("DEBUG LINE IN DGYM 145")
-                    #print(self.info.get('contact', 'none'))
-                    if self.info.get('contact', 'none') != 'none':
+                    # Track sustained collision/contact time. Older handlers only
+                    # expose "hit"; newer Unity telemetry also exposes "contact".
+                    contact = self.info.get('contact', self.info.get('hit', 'none'))
+                    if contact != 'none':
                         if collision_start_time is None:
                             collision_start_time = time.time()
                         # Exit if collision has lasted 3+ seconds
@@ -170,7 +171,8 @@ class DonkeyGymEnv(object):
                         time_step += 1
             finally:
                 print(f"Data saved in {file_path}")
-                print('debug collision',self.info.get('contact', 'none'))
+                contact = self.info.get('contact', self.info.get('hit', 'none'))
+                print('debug collision', contact)
                 #if self.run_logger and self.info.get('hit', 'none') != 'none':
                 if self.run_logger and collision_start_time and time.time() - collision_start_time >= collision_timeout:
                     self.run_logger.set_outcome('CRASH')
