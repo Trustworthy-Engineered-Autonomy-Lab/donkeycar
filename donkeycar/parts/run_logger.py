@@ -8,13 +8,16 @@ class RunLogger:
                  anomaly_type='normal', intensity_param=0.0, anomaly_flag=None, start_pos=-1,
                  steering_gain=1.0, steering_bias=0.0, frame_drop=0, brightness_coeff=1.0,
                  cmd_latency=0, mass_scale=1.0, cam_pitch=0.0, occlusion_fraction=0.4,
-                 friction_scale=1.0):
+                 friction_scale=1.0, drag_force=0.0, blur_kernel=7,
+                 one_wheel_friction_scale=1.0, one_wheel_friction_index=-1,
+                 anomaly_intensities=None):
         log_dir = log_dir + f'/log_{run_id}.csv'
         os.makedirs(os.path.dirname(log_dir), exist_ok=True)
         self.f = open(log_dir, 'w', newline='')
         self.writer = csv.writer(self.f)
         self.writer.writerow([
             'frame_id', 'uncorrupted_image_path', 'corrupted_image_path', 'timestamp_ms',
+            'sim_time', 'run_sim_time',
             'steering_cmd', 'steering_act',
             'throttle_cmd', 'throttle_act',
             'pos_x', 'pos_z',
@@ -22,6 +25,7 @@ class RunLogger:
             'accel_x', 'accel_z', 'yaw', 'pitch', 'roll', 'anomaly_param', 'anomaly_intensity'
         ])
         self.frame_id = 0
+        self.first_sim_time = None
         if anomaly_flag is None:
             anomaly_flag = []
         self.anomaly_flag_list = anomaly_flag if isinstance(anomaly_flag, list) else [str(anomaly_flag)]
@@ -33,38 +37,32 @@ class RunLogger:
         self.anomaly_param = intensity_param
         self.outcome = 'SAFE'
         
-        # Store anomaly/parameter values #SETTING EVERYTHING TO INTENSITY_PARAM ONLY WORKS FOR SINGLE ANOMALY RUNS
-        self.steering_gain =  intensity_param #steering_gain
-        self.steering_bias = intensity_param #steering_bias
-        self.frame_drop = intensity_param #frame_drop
-        self.brightness_coeff = intensity_param #brightness_coeff
-        self.cmd_latency = intensity_param #cmd_latency
-        self.mass_scale = intensity_param #mass_scale
-        self.cam_pitch = intensity_param #cam_pitch
-        self.occlusion_fraction = intensity_param #occlusion_fraction
-        self.friction_scale = intensity_param #friction_scale
-        
-        # Build anomaly intensity dict for per-timestep recording
-        self.anomaly_intensities = {}
-        for anomaly in self.anomaly_flag_list:
-            if anomaly == 'steering_gain':
-                self.anomaly_intensities['steering_gain'] = steering_gain
-            elif anomaly == 'steering_bias': 
-                self.anomaly_intensities['steering_bias'] = steering_bias
-            elif anomaly == 'frame_drop':
-                self.anomaly_intensities['frame_drop'] = frame_drop
-            elif anomaly == 'brightness_coeff':
-                self.anomaly_intensities['brightness_coeff'] = brightness_coeff
-            elif anomaly == 'cmd_latency':
-                self.anomaly_intensities['cmd_latency'] = cmd_latency
-            elif anomaly == 'mass_scale':
-                self.anomaly_intensities['mass_scale'] = mass_scale
-            elif anomaly == 'cam_pitch':
-                self.anomaly_intensities['cam_pitch'] = cam_pitch
-            elif anomaly == 'occlusion_fraction':
-                self.anomaly_intensities['occlusion_fraction'] = occlusion_fraction
-            elif anomaly == 'friction_scale':
-                self.anomaly_intensities['friction_scale'] = friction_scale
+        default_intensities = {
+            'steering_gain': steering_gain,
+            'steering_bias': steering_bias,
+            'frame_drop': frame_drop,
+            'brightness_coeff': brightness_coeff,
+            'cmd_latency': cmd_latency,
+            'mass_scale': mass_scale,
+            'cam_pitch': cam_pitch,
+            'occlusion_fraction': occlusion_fraction,
+            'friction_scale': friction_scale,
+            'drag_force': drag_force,
+            'blur_kernel': blur_kernel,
+            'one_wheel_friction_scale': one_wheel_friction_scale,
+            'one_wheel_friction_index': one_wheel_friction_index,
+        }
+        intensity_source = anomaly_intensities or default_intensities
+
+        # Build anomaly intensity dict for per-timestep recording.
+        self.anomaly_intensities = {
+            anomaly: intensity_source[anomaly]
+            for anomaly in self.anomaly_flag_list
+            if anomaly in intensity_source
+        }
+        if anomaly_intensities and not self.anomaly_intensities:
+            self.anomaly_flag_list = list(anomaly_intensities.keys())
+            self.anomaly_intensities = dict(anomaly_intensities)
 
         self.cumulative_cte = 0.0
         self.euclidean_dist = 0.0
@@ -82,9 +80,14 @@ class RunLogger:
                 ])
 
     def run(self, steering_cmd, steering_act, throttle_cmd, throttle_act,
-            pos_x, pos_z, yaw_rate, speed, cte,
+            sim_time, pos_x, pos_z, yaw_rate, speed, cte,
             accel_x, accel_z, yaw, pitch, roll, hit):
         ts = int(time.time() * 1000)
+        if sim_time is None:
+            sim_time = 0.0
+        if self.first_sim_time is None:
+            self.first_sim_time = sim_time
+        run_sim_time = sim_time - self.first_sim_time
         normal_img_path = f"imgs/normal/image_{self.run_id}.jpg"
         corrupt_path = f"imgs/noise/noise_image_{self.run_id}.jpg"
         
@@ -103,6 +106,7 @@ class RunLogger:
         
         self.writer.writerow([
             self.frame_id, normal_img_path, corrupt_path, ts,
+            sim_time, run_sim_time,
             steering_cmd, steering_act,
             throttle_cmd, throttle_act,
             pos_x, pos_z,
