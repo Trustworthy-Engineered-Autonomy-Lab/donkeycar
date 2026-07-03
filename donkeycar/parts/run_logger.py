@@ -17,6 +17,7 @@ class RunLogger:
         self.writer = csv.writer(self.f)
         self.writer.writerow([
             'frame_id', 'uncorrupted_image_path', 'corrupted_image_path', 'timestamp_ms',
+            'sim_time', 'run_sim_time',
             'steering_cmd', 'steering_act',
             'throttle_cmd', 'throttle_act',
             'pos_x', 'pos_z',
@@ -24,6 +25,7 @@ class RunLogger:
             'accel_x', 'accel_z', 'yaw', 'pitch', 'roll', 'anomaly_param', 'anomaly_intensity'
         ])
         self.frame_id = 0
+        self.first_sim_time = None
         if anomaly_flag is None:
             anomaly_flag = []
         self.anomaly_flag_list = anomaly_flag if isinstance(anomaly_flag, list) else [str(anomaly_flag)]
@@ -78,9 +80,14 @@ class RunLogger:
                 ])
 
     def run(self, steering_cmd, steering_act, throttle_cmd, throttle_act,
-            pos_x, pos_z, yaw_rate, speed, cte,
+            sim_time, pos_x, pos_z, yaw_rate, speed, cte,
             accel_x, accel_z, yaw, pitch, roll, hit):
         ts = int(time.time() * 1000)
+        if sim_time is None:
+            sim_time = 0.0
+        if self.first_sim_time is None:
+            self.first_sim_time = sim_time
+        run_sim_time = sim_time - self.first_sim_time
         normal_img_path = f"imgs/normal/image_{self.run_id}.jpg"
         corrupt_path = f"imgs/noise/noise_image_{self.run_id}.jpg"
         
@@ -99,6 +106,7 @@ class RunLogger:
         
         self.writer.writerow([
             self.frame_id, normal_img_path, corrupt_path, ts,
+            sim_time, run_sim_time,
             steering_cmd, steering_act,
             throttle_cmd, throttle_act,
             pos_x, pos_z,
