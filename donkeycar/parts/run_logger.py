@@ -12,6 +12,7 @@ class RunLogger:
                  one_wheel_friction_scale=1.0, one_wheel_friction_index=-1,
                  anomaly_intensities=None):
         log_dir = log_dir + f'/log_{run_id}.csv'
+        self.log_path = log_dir
         os.makedirs(os.path.dirname(log_dir), exist_ok=True)
         self.f = open(log_dir, 'w', newline='')
         self.writer = csv.writer(self.f)
@@ -22,7 +23,8 @@ class RunLogger:
             'throttle_cmd', 'throttle_act',
             'pos_x', 'pos_z',
             'yaw_rate', 'speed', 'cte',
-            'accel_x', 'accel_z', 'yaw', 'pitch', 'roll', 'anomaly_param', 'anomaly_intensity'
+            'accel_x', 'accel_z', 'yaw', 'pitch', 'roll',
+            'anomaly_param', 'anomaly_intensity', 'crashed'
         ])
         self.frame_id = 0
         self.first_sim_time = None
@@ -110,7 +112,8 @@ class RunLogger:
             throttle_cmd, throttle_act,
             pos_x, pos_z,
             yaw_rate, speed, cte,
-            accel_x, accel_z, yaw, pitch, roll, anomaly_param_str, anomaly_intensity_str
+            accel_x, accel_z, yaw, pitch, roll,
+            anomaly_param_str, anomaly_intensity_str, 0
         ])
         self.cumulative_cte += abs(cte) if cte else 0.0
         if self.prev_x is not None:
@@ -124,8 +127,34 @@ class RunLogger:
     def set_outcome(self, outcome):
         self.outcome = outcome
 
+    def _mark_last_row_crashed(self):
+        if self.frame_id == 0:
+            return
+
+        with open(self.log_path, 'r', newline='') as f:
+            rows = list(csv.reader(f))
+
+        if len(rows) <= 1:
+            return
+
+        header = rows[0]
+        if 'crashed' not in header:
+            header.append('crashed')
+
+        crashed_idx = header.index('crashed')
+        for row in rows[1:]:
+            while len(row) <= crashed_idx:
+                row.append('0')
+
+        rows[-1][crashed_idx] = '1'
+
+        with open(self.log_path, 'w', newline='') as f:
+            csv.writer(f).writerows(rows)
+
     def shutdown(self):
         self.f.close()
+        if self.outcome == 'CRASH':
+            self._mark_last_row_crashed()
         if self.summary_path:
             avg_cte = self.cumulative_cte / self.frame_id if self.frame_id > 0 else 0.0
             
