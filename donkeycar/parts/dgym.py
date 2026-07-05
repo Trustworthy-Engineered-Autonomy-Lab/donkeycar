@@ -63,7 +63,7 @@ class DonkeyGymEnv(object):
         self.info = {'pos': (0., 0., 0.),
                      'speed': 0,
                      'cte': 0,
-                     'sim_time': 0.0,
+                     'sim_time': None,
                      'gyro': (0., 0., 0.),
                      'accel': (0., 0., 0.),
                      'vel': (0., 0., 0.),
@@ -238,7 +238,7 @@ class DonkeyGymEnv(object):
 
         # Output Sim-car position information if configured
         outputs = [frame_out]
-        outputs += [self.info.get('sim_time', 0.0)]
+        outputs += [self.info.get('sim_time')]
         if self.record_location:
             outputs += self.info['pos'][0],  self.info['pos'][1],  self.info['pos'][2],  self.info['speed'], self.info['cte']
         if self.record_gyroaccel:
