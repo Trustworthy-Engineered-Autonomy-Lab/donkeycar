@@ -21,7 +21,7 @@ def is_exe(fpath):
 
 class DonkeyGymEnv(object):
 
-    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False,delay=0, num_drop=0, brightness_coeff=1.0, name="", folder_name='', cmd_latency=0, mass_scale = 1.0, cam_pitch = 0.0, occlusion_fraction = .4, friction_scale = 1.0, drag_force = 0.0, blur_kernel = 7., one_wheel_friction_scale = 1.0, one_wheel_friction_index = -1):
+    def __init__(self, sim_path, host="127.0.0.1", port=9091, headless=0, noise="default_noise",env_name="donkey-generated-track-v0", sync="asynchronous", conf={}, record_location=False, record_gyroaccel=False, record_velocity=False, record_lidar=False, record_orientation=False, record_action=False, delay=0, num_drop=0, brightness_coeff=1.0, name="", folder_name='', cmd_latency=0, mass_scale = 1.0, cam_pitch = 0.0, occlusion_fraction = .4, friction_scale = 1.0, drag_force = 0.0, blur_kernel = 7., one_wheel_friction_scale = 1.0, one_wheel_friction_index = -1):
 
         if sim_path != "remote":
             if not os.path.exists(sim_path):
@@ -75,6 +75,7 @@ class DonkeyGymEnv(object):
         self.record_velocity = record_velocity
         self.record_lidar = record_lidar
         self.record_orientation = record_orientation
+        self.record_action = record_action
         self.cte_values = []
         self.abs_cte_values = []
         self.all_data = []
@@ -211,6 +212,7 @@ class DonkeyGymEnv(object):
         else:
             self.action = [steering, throttle, brake]
 
+        clean_frame = self.frame.copy()
         if self.num_drop > 0:
             if self.drop_counter == 0:
                 self.frozen_frame = self.frame.copy()
@@ -237,8 +239,9 @@ class DonkeyGymEnv(object):
         
 
         # Output Sim-car position information if configured
-        outputs = [frame_out]
+        outputs = [frame_out, clean_frame]
         outputs += [self.info.get('sim_time')]
+        outputs += [self.action[0], self.action[1]]
         if self.record_location:
             outputs += self.info['pos'][0],  self.info['pos'][1],  self.info['pos'][2],  self.info['speed'], self.info['cte']
         if self.record_gyroaccel:
