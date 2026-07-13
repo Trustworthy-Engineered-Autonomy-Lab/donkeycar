@@ -20,7 +20,7 @@ class RunLogger:
             'frame_id', 'uncorrupted_image_path', 'corrupted_image_path', 'timestamp_ms',
             'sim_time', 'run_sim_time',
             'steering_cmd', 'steering_act',
-            'clean/pilot_angle', 'clean/pilot_throttle',
+            'control/pilot_angle', 'control/pilot_throttle',
             'throttle_cmd', 'throttle_act',
             'steering_delayed', 'throttle_delayed',
             'pos_x', 'pos_z',
@@ -84,7 +84,7 @@ class RunLogger:
                 ])
 
     def run(self, steering_cmd, steering_act, 
-            clean_steering_cmd, clean_throttle_cmd,
+            control_steering_cmd, control_throttle_cmd,
             throttle_cmd, throttle_act,
             steering_delayed, throttle_delayed,
             sim_time, pos_x, pos_z, yaw_rate, speed, cte,
@@ -114,7 +114,7 @@ class RunLogger:
             self.frame_id, normal_img_path, corrupt_path, ts,
             sim_time_value, run_sim_time,
             steering_cmd, steering_act,
-            clean_steering_cmd, clean_throttle_cmd,
+            control_steering_cmd, control_throttle_cmd,
             throttle_cmd, throttle_act,
             steering_delayed, throttle_delayed,
             pos_x, pos_z,

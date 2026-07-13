@@ -89,6 +89,7 @@ class DonkeyGymEnv(object):
         self.occlusion_fraction = occlusion_fraction
         self.mud_center = None
         self.blur_kernel = blur_kernel
+        self.cam_pitch = cam_pitch
 
 
 
@@ -212,7 +213,11 @@ class DonkeyGymEnv(object):
         else:
             self.action = [steering, throttle, brake]
 
-        clean_frame = self.frame.copy()
+        if self.cam_pitch == 0:
+            clean_frame = self.frame.copy()
+        else:
+            control_frame = self.info.get("image_b", self.frame).copy()
+        
         if self.num_drop > 0:
             if self.drop_counter == 0:
                 self.frozen_frame = self.frame.copy()
@@ -239,7 +244,10 @@ class DonkeyGymEnv(object):
         
 
         # Output Sim-car position information if configured
-        outputs = [frame_out, clean_frame]
+        if (self.cam_pitch == 0):
+            outputs = [frame_out, clean_frame]
+        else:
+            outputs = [frame_out, control_frame]
         outputs += [self.info.get('sim_time')]
         outputs += [self.action[0], self.action[1]]
         if self.record_location:
