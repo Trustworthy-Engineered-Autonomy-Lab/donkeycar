@@ -342,6 +342,7 @@ class KerasLinear(KerasPilot):
         self.data_folder = folder_name
         self.noise_folder = os.path.join(self.data_folder, "noise")
         self.normal_folder = os.path.join(self.data_folder, "normal")
+        self.image_save_role = "both"
 
         print(noise_type)
         print(self.noise_folder)
@@ -377,16 +378,18 @@ class KerasLinear(KerasPilot):
         # File paths for saving images
         noisy_image_path = os.path.join(self.noise_folder, f"noise_image_{self.counter}.jpg")
         normal_image_path = os.path.join(self.normal_folder, f"image_{self.counter}.jpg")
-        normal_image = Image.fromarray(img_arr)
-        normal_image.save(normal_image_path)
+        if self.image_save_role in ("both", "normal"):
+            normal_image = Image.fromarray(img_arr)
+            normal_image.save(normal_image_path)
 
         # Apply noise augmentation if a noise function is set
         if self.noise_function:
             img_arr = self.noise_function(img_arr)
         
         # Save the noisy image
-        noisy_image = Image.fromarray(img_arr)
-        noisy_image.save(noisy_image_path)
+        if self.image_save_role in ("both", "noise"):
+            noisy_image = Image.fromarray(img_arr)
+            noisy_image.save(noisy_image_path)
 
         # Increment the counter
         self.counter += 1
